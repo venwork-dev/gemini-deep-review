@@ -169,10 +169,10 @@ For each issue:
   - medium: Code smells, minor issues, maintainability concerns
   - low: Minor improvements, suggestions
 - **Category**: correctness | performance | maintainability | best-practice
-- **Title**: Short, clear description
-- **Description**: What's wrong?
-- **Reasoning**: WHY is this a problem? (Use your deep reasoning here!)
-- **Suggestion**: How to fix it?
+- **Title**: Short, clear description (max 100 chars)
+- **Description**: What's wrong? (max 300 chars)
+- **Reasoning**: WHY is this a problem? Use your deep reasoning here! (max 400 chars)
+- **Suggestion**: How to fix it? Be concise and actionable. (max 300 chars)
 - **Rule ID**: IMPORTANT!
   - If the issue is DIRECTLY covered by a PRINCIPLE or REQUIREMENT rule above, include the rule ID
   - Example: Async waterfall → "react-performance-principles"
@@ -227,8 +227,10 @@ Your approach:
 - Be specific and helpful in suggestions
 - Focus on high-impact issues over nitpicks
 - Explain WHY something is a problem, not just WHAT is wrong
+- BE CONCISE: Keep all fields brief and actionable (no rambling!)
 
-Output only valid JSON matching the provided schema. No additional text.`;
+CRITICAL: Output only valid JSON matching the provided schema. No additional text.
+Keep suggestions SHORT and actionable - aim for 1-3 sentences maximum per field.`;
   }
 
   /**
@@ -256,7 +258,12 @@ Output only valid JSON matching the provided schema. No additional text.`;
               title: { type: SchemaType.STRING },
               description: { type: SchemaType.STRING },
               reasoning: { type: SchemaType.STRING },
-              suggestion: { type: SchemaType.STRING, nullable: true },
+              suggestion: {
+                type: SchemaType.STRING,
+                nullable: true,
+                // Limit suggestion length to prevent token overflow
+                maxLength: 500
+              },
               ruleId: { type: SchemaType.STRING, nullable: true },
             },
             required: ['severity', 'category', 'file', 'title', 'description', 'reasoning'],

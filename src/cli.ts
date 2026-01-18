@@ -18,7 +18,7 @@ program
   .description('AI-powered code review using Google Gemini with deep reasoning')
   .version('0.1.0')
   .argument('[file]', 'File to review (default: will support git diff in future)')
-  .option('-m, --model <model>', 'Gemini model to use', process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp')
+  .option('-m, --model <model>', 'Gemini model to use', process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite')
   .option('--no-thinking', 'Disable deep thinking mode')
   .option('-t, --tags <tags>', 'Filter rules by tags (comma-separated)', '')
   .action(async (filePath: string | undefined, options) => {
