@@ -18,13 +18,11 @@ program
   .description('AI-powered code review using Google Gemini with deep reasoning')
   .version('0.1.0')
   .argument('[file]', 'File to review (default: will support git diff in future)')
-  .option('-m, --model <model>', 'Gemini model to use', process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite')
+  .option('-m, --model <model>', 'Gemini model: gemini-2.5-flash-lite (budget) | gemini-2.5-flash (balanced) | gemini-2.5-pro (premium)', process.env.GEMINI_MODEL || 'gemini-2.5-flash')
   .option('--no-thinking', 'Disable deep thinking mode')
   .option('-t, --tags <tags>', 'Filter rules by tags (comma-separated)', '')
   .action(async (filePath: string | undefined, options) => {
     try {
-      console.log(chalk.bold.cyan('\n🔍 Gemini Code Review\n'));
-
       // Validate API key
       const apiKey = process.env.GOOGLE_API_KEY;
       if (!apiKey) {
@@ -53,7 +51,6 @@ program
         : ['react', 'typescript'];
 
       const rulesPrompt = ruleLoader.compileRulesForPrompt(tags);
-      console.log(chalk.gray(`Using rules tagged: ${tags.join(', ')}`));
 
       // Determine files to review
       let filesToReview: FileToReview[];
@@ -69,8 +66,6 @@ program
         process.exit(1);
       }
 
-      console.log(chalk.gray(`Reviewing ${filesToReview.length} file(s)...\n`));
-
       // Configure reviewer
       const config: ReviewConfig = {
         model: options.model,
@@ -80,23 +75,31 @@ program
         apiKey,
       };
 
-      // Run review with visible two-phase process
-      console.log(chalk.bold.cyan('🤖 AI Review Process\n'));
+      console.log();
 
-      console.log(chalk.yellow('📋 JOB 1: Checking against your team rules...'));
-      console.log(chalk.gray('   - Enforcing strict requirements'));
-      console.log(chalk.gray('   - Applying guiding principles\n'));
+      // Print configuration
+      ResultFormatter.printConfig({
+        model: config.model,
+        rules: ruleLoader.getRules().length,
+        tags,
+        deepThinking: config.enableDeepThinking,
+      });
 
+      // Run review
       const reviewSpinner = ora({
-        text: chalk.blue('🧠 JOB 2: Deep AI reasoning (discovering issues beyond rules)...'),
-        color: 'blue'
+        text: chalk.blue('Analyzing ' + filePath + '...'),
+        color: 'cyan'
       }).start();
 
       const reviewer = new GeminiReviewer(config);
+      const startTime = Date.now();
 
       try {
         const result = await reviewer.reviewCode(filesToReview, rulesPrompt);
-        reviewSpinner.succeed(chalk.green('✅ Analysis complete! (Both rule-based + AI discoveries)'));
+        reviewSpinner.succeed(chalk.green('Analysis complete'));
+
+        // Add timing info to result
+        (result as any).startTime = startTime;
 
         // Print results
         ResultFormatter.printResults(result);

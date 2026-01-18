@@ -1,4 +1,4 @@
-# Gemini Code Review
+# Gemini Deep Code Review
 
 AI-powered code review tool using Google Gemini with deep reasoning for React and TypeScript projects.
 
@@ -36,19 +36,9 @@ AI-powered code review tool using Google Gemini with deep reasoning for React an
 - 🎯 **React & TypeScript Focus**: Specialized for modern React + TS codebases
 - 📋 **Two-Tier Rule System**: Principles for AI guidance + Requirements for strict enforcement
 - 🔍 **Detailed Explanations**: Every issue includes deep reasoning and actionable suggestions
-- 🎨 **Beautiful CLI**: Color-coded severity levels with clear formatting
-- 🚀 **Fast & Cost-Effective**: ~$0.0005 per file review
+- 🎨 **Beautiful CLI**: Color-coded severity levels with modern terminal UI
+- 🚀 **Fast & Scalable**: ~$0.003 per file review, enterprise-ready
 - 🔧 **Fully Customizable**: Add your team's standards without code changes
-
-## Phase 1: Single File Review
-
-Current capabilities:
-- ✅ Review individual React/TypeScript files
-- ✅ Deep reasoning with Gemini 2.0
-- ✅ Structured JSON output
-- ✅ Beautiful CLI formatting
-- ⏳ Git diff support (coming in Phase 2)
-- ⏳ GitHub Action (coming in Phase 3)
 
 ## Installation
 
@@ -65,10 +55,12 @@ echo "GOOGLE_API_KEY=your_api_key_here" > .env
 
 ## Getting a Google API Key
 
-1. Go to [Google AI Studio](https://makersuite.google.com/app/apikey)
+1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
 2. Click "Get API Key"
 3. Create a new API key or use an existing one
 4. Copy the key and add it to your `.env` file
+
+**Note**: Free tier is perfect for personal projects. For enterprise/team usage, consider upgrading to [Google Cloud](https://cloud.google.com/vertex-ai/generative-ai/pricing) for higher rate limits.
 
 ## Usage
 
@@ -82,7 +74,7 @@ Or with custom options:
 
 ```bash
 # Use specific model
-bun run dev test-samples/UserProfile.tsx -- --model gemini-2.0-flash-thinking-exp
+bun run dev test-samples/UserProfile.tsx -- --model gemini-2.5-pro
 
 # Filter rules by tags
 bun run dev test-samples/UserProfile.tsx -- --tags react,hooks
@@ -99,19 +91,32 @@ We've included a sample file with intentional issues:
 bun test
 ```
 
-This will review `test-samples/UserProfile.tsx` which contains 7 intentional issues:
-1. Async waterfall (sequential fetches)
-2. Missing useEffect dependency
-3. State update without functional form
-4. No cleanup for event listener
-5. Type assertion without validation
-6. Expensive computation without useMemo
-7. Stale closure in event handler
+This will review `test-samples/UserProfile.tsx` which contains 7 intentional issues including async waterfall, missing dependencies, and type safety problems.
+
+## Model Selection
+
+The tool supports multiple Gemini models with different trade-offs:
+
+```bash
+# Budget - Fast and cost-efficient
+GEMINI_MODEL=gemini-2.5-flash-lite
+
+# Balanced - Good quality (default)
+GEMINI_MODEL=gemini-2.5-flash
+
+# Premium - Best quality
+GEMINI_MODEL=gemini-2.5-pro
+
+# Latest Gen 3 - Cutting edge (experimental)
+GEMINI_MODEL=gemini-3-pro-preview
+```
+
+See [MODEL_SELECTION.md](./MODEL_SELECTION.md) for detailed comparison and recommendations. Model capabilities and limits are guidelines - actual performance may vary.
 
 ## Project Structure
 
 ```
-gemini-code-review/
+gemini-deep-review/
 ├── src/
 │   ├── cli.ts              # CLI entry point
 │   ├── gemini-reviewer.ts  # Gemini API integration
@@ -119,16 +124,16 @@ gemini-code-review/
 │   ├── formatter.ts        # Pretty print results
 │   └── types.ts            # TypeScript interfaces
 ├── rules/
-│   ├── react/
+│   ├── react/              # React-specific rules
 │   │   ├── async-waterfall.md
 │   │   └── hooks-best-practices.md
-│   └── typescript/
+│   └── typescript/         # TypeScript rules
 │       └── type-safety.md
-├── test-samples/
-│   └── UserProfile.tsx     # Sample file with issues
-├── package.json
-├── tsconfig.json
-└── README.md
+├── test-samples/           # Sample files for testing
+└── docs/                   # Additional documentation
+    ├── MODEL_SELECTION.md
+    ├── TROUBLESHOOTING.md
+    └── RATE_LIMITS.md
 ```
 
 ## Rule System: Principles + Requirements
@@ -217,88 +222,121 @@ Environment variables (`.env`):
 # Required
 GOOGLE_API_KEY=your_key_here
 
-# Optional
-GEMINI_MODEL=gemini-2.0-flash-exp
+# Optional (with defaults)
+GEMINI_MODEL=gemini-2.5-flash
 ENABLE_DEEP_THINKING=true
 MAX_TOKENS=8192
 TEMPERATURE=0.1
 ```
 
-### Available Models
-
-- `gemini-2.0-flash-exp` (default) - Fast, cost-effective
-- `gemini-2.0-flash-thinking-exp` - Deep reasoning enabled
-- `gemini-1.5-pro` - More capable, slower, more expensive
-
 ## Output Format
 
 The CLI outputs:
-- 📊 Overall metrics (files, lines, issues, score)
+
+- 📊 Overall metrics (files, score, issue count)
 - 📝 Summary of code quality
-- 🔴 Critical issues (will cause bugs/crashes)
-- 🟠 High priority issues (major problems)
-- 🟡 Medium issues (code smells)
-- 🟢 Low issues (minor improvements)
+- 🔖 **From Team Rules**: Issues matching your custom rules
+- ✨ **AI Insights**: Additional issues discovered by AI reasoning
 
 Each issue includes:
-- **Location**: File and line number
+- **Location**: File and line number (clickable in supported terminals)
+- **Title**: Short description
 - **Description**: What's wrong
-- **Reasoning**: Why it's a problem (deep analysis)
-- **Suggestion**: How to fix it
+- **Why**: Deep reasoning explaining the problem
+- **Fix**: Actionable suggestion to resolve it
+
+Severity levels:
+- 🔴 **Critical**: Will cause bugs/crashes
+- 🟠 **High**: Major problems
+- 🟡 **Medium**: Code smells
+- 🟢 **Low**: Minor improvements
 
 ## Exit Codes
 
-- `0` - Review passed (no critical/high issues)
+- `0` - Review passed (no critical issues)
 - `1` - Review failed (critical issues found)
+
+Use in CI/CD to block merges on critical issues.
+
+## Troubleshooting
+
+For common issues and solutions, see [TROUBLESHOOTING.md](./TROUBLESHOOTING.md).
+
+Quick fixes:
+- **"GOOGLE_API_KEY is required"**: Create a `.env` file with your API key
+- **"Rules directory not found"**: Run from project root directory
+- **JSON parse errors**: See TROUBLESHOOTING.md for model recommendations
 
 ## Roadmap
 
 ### Phase 1: Single File Review ✅ (Current)
-- [x] Gemini integration
-- [x] Rule system
-- [x] CLI interface
-- [x] Pretty output
-- [x] Test sample
+- [x] Gemini integration with deep reasoning
+- [x] Hybrid rule system (principles + requirements)
+- [x] Modern CLI interface
+- [x] Comprehensive error handling
 
 ### Phase 2: Git Diff Support (Next)
-- [ ] Detect current branch
-- [ ] Compare with base branch
-- [ ] Review only changed files
-- [ ] Show diff context
+- [ ] Review only changed files in PR/branch
+- [ ] Show diff context in reviews
 - [ ] Smart chunking for large PRs
 
 ### Phase 3: GitHub Action
-- [ ] Action workflow file
 - [ ] PR comment integration
-- [ ] Inline annotations
+- [ ] Inline code annotations
 - [ ] Blocking on critical issues
 - [ ] Cost reporting
 
 ### Phase 4: Advanced Features
 - [ ] Auto-fix suggestions (executable)
-- [ ] Code execution validation
-- [ ] Multi-model comparison
-- [ ] Custom rule testing
-- [ ] Web dashboard
+- [ ] Multi-file architectural analysis
+- [ ] Custom rule testing framework
+- [ ] Web dashboard for team analytics
 
-## Cost Estimation
+## Cost & Scalability
 
-Gemini 2.0 Flash pricing (as of Jan 2025):
-- Input: $0.075 per 1M tokens
-- Output: $0.30 per 1M tokens
+**Personal/Small Teams (Free Tier)**:
+- 15 reviews/minute, 1,500/day
+- Perfect for individual developers
+- ~$0.003 per review
 
-Typical review (500 LOC file):
-- Input: ~3,000 tokens (rules + code)
-- Output: ~1,000 tokens (review)
-- **Cost: ~$0.0005 per file** (less than a penny!)
+**Enterprise (Paid Tier)**:
+- 1,000+ reviews/minute
+- No daily limits
+- Scales to thousands of developers
+- ~$225/month for 2,500 reviews/day (negligible vs. engineer costs)
 
-## Comparison with Alternatives
+See [RATE_LIMITS.md](./RATE_LIMITS.md) for detailed analysis.
 
-| Tool | Cost per Review | Customization | React Focus | Deep Reasoning |
-|------|----------------|---------------|-------------|----------------|
-| GitHub Copilot | Quota-based | Low | No | No |
-| This Tool | ~$0.0005 | High | Yes | Yes |
-| Human Review | $50-200 | High | Depends | Yes |
+## Legal & Fair Use
+
+### Copyright Policy
+
+This tool is designed to analyze code that you own or have permission to review. Users are responsible for ensuring they have appropriate rights to any code submitted for review.
+
+### Fair Use Notice
+
+This tool:
+- Analyzes code for quality, bugs, and best practices (transformative use)
+- Does not store, redistribute, or create derivative works from reviewed code
+- Processes code transiently through Google's Gemini API
+- Returns original analysis and suggestions, not code reproduction
+
+Users should:
+- Only review code they own or have authorization to analyze
+- Not use this tool to reverse-engineer proprietary software
+- Comply with their organization's policies on code review tools
+- Be aware that code is processed by Google's AI services (see [Google's terms](https://ai.google.dev/gemini-api/terms))
+
+### Data Privacy
+
+- Code is sent to Google Gemini API for analysis
+- Google's data usage policies apply (review at [ai.google.dev/terms](https://ai.google.dev/gemini-api/terms))
+- No code is stored by this tool itself
+- For sensitive codebases, consider using Google Cloud with private endpoints
+
+### Disclaimer
+
+THIS SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND. The tool provides suggestions and analysis but does not guarantee code correctness or security. Users are responsible for reviewing and validating all suggestions before implementation.
 
 ## Development
 
@@ -309,38 +347,36 @@ bun run dev test-samples/UserProfile.tsx
 # Build
 bun run build
 
-# Run built version
-node dist/cli.js test-samples/UserProfile.tsx
+# Run tests
+bun test
 ```
-
-## Troubleshooting
-
-### "GOOGLE_API_KEY is required"
-Make sure you've created a `.env` file with your API key.
-
-### "Rules directory not found"
-Make sure you're running the command from the project root directory.
-
-### "Failed to parse JSON response"
-Try using a different model or reducing the file size. Sometimes the model output is malformed.
 
 ## Contributing
 
-This is a showcase project.
-Contributions welcome!
+Contributions welcome! Please:
 
-1. Fork the repo
-2. Create a feature branch
-3. Add your changes
-4. Submit a pull request
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
-MIT
+MIT License - see LICENSE file for details.
 
 ## Credits
 
-Inspired by:
-- [Vercel Agent Skills](https://github.com/vercel-labs/agent-skills)
-- [Anthropic Agent SDK](https://github.com/anthropics/claude-agent-sdk)
-- Google Gemini 2.0 capabilities
+- Powered by [Google Gemini](https://ai.google.dev/gemini-api/docs)
+- Inspired by [Vercel Agent Skills](https://github.com/vercel-labs/agent-skills)
+- Built with [Anthropic's Agent patterns](https://github.com/anthropics/claude-agent-sdk)
+
+## Support
+
+- 📖 [Documentation](./MODEL_SELECTION.md)
+- 🐛 [Report Issues](https://github.com/your-repo/issues)
+- 💬 [Discussions](https://github.com/your-repo/discussions)
+
+---
+
+**Note**: Model capabilities, rate limits, and pricing are subject to change by Google. Refer to [official documentation](https://ai.google.dev/gemini-api/docs) for the latest information.

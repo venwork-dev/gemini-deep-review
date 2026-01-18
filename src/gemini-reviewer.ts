@@ -1,9 +1,58 @@
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import chalk from 'chalk';
 import { ReviewConfig, ReviewResult, FileToReview, ReviewIssue } from './types.js';
 
 export class GeminiReviewer {
   private genai: GoogleGenerativeAI;
   private config: ReviewConfig;
+
+  // Model recommendations by tier (based on https://ai.google.dev/gemini-api/docs/models)
+  private static readonly MODEL_LIMITS: Record<string, {
+    outputTokens: number;
+    tier: 'budget' | 'balanced' | 'premium';
+    recommended: boolean;
+    generation: number; // 2.5 or 3
+  }> = {
+    // Budget tier - Ultra fast, cost-efficient
+    'gemini-2.5-flash-lite': {
+      outputTokens: 65536,
+      tier: 'budget',
+      recommended: true,
+      generation: 2.5
+    },
+
+    // Balanced tier - Price-performance leader (most users)
+    'gemini-2.5-flash': {
+      outputTokens: 65536,
+      tier: 'balanced',
+      recommended: true,
+      generation: 2.5
+    },
+
+    // Premium tier - Advanced thinking model
+    'gemini-2.5-pro': {
+      outputTokens: 65536,
+      tier: 'premium',
+      recommended: true,
+      generation: 2.5
+    },
+
+    // Latest generation - Fast and scalable
+    'gemini-3-flash-preview': {
+      outputTokens: 65536,
+      tier: 'balanced',
+      recommended: true,
+      generation: 3
+    },
+
+    // Latest generation - Most intelligent
+    'gemini-3-pro-preview': {
+      outputTokens: 65536,
+      tier: 'premium',
+      recommended: true,
+      generation: 3
+    },
+  };
 
   constructor(config: ReviewConfig) {
     if (!config.apiKey) {
@@ -11,6 +60,43 @@ export class GeminiReviewer {
     }
     this.genai = new GoogleGenerativeAI(config.apiKey);
     this.config = config;
+
+    // Validate model
+    this.validateModel();
+  }
+
+  /**
+   * Validate the selected model and warn if problematic
+   */
+  private validateModel(): void {
+    const modelInfo = GeminiReviewer.MODEL_LIMITS[this.config.model];
+
+    if (!modelInfo) {
+      console.warn(
+        chalk.yellow(`⚠️  Unknown model: ${this.config.model}`) +
+        chalk.dim('\n   May have limited output capacity.') +
+        chalk.dim('\n   Budget: gemini-2.5-flash-lite | Balanced: gemini-2.5-flash | Premium: gemini-2.5-pro')
+      );
+    } else if (!modelInfo.recommended) {
+      console.warn(
+        chalk.yellow(`⚠️  Model "${this.config.model}" may not be optimal`) +
+        chalk.dim(`\n   Output limit: ${modelInfo.outputTokens} tokens | Tier: ${modelInfo.tier}`) +
+        chalk.dim('\n   Consider upgrading to a recommended model')
+      );
+    } else {
+      // Show tier info for recommended models
+      const tierEmoji = {
+        budget: '💰',
+        balanced: '⚖️',
+        premium: '⭐'
+      }[modelInfo.tier];
+
+      const genBadge = modelInfo.generation >= 3 ? ' (Gen 3)' : '';
+
+      console.log(
+        chalk.dim(`   ${tierEmoji} Using ${modelInfo.tier} tier model${genBadge} (65K output limit)`)
+      );
+    }
   }
 
   /**
@@ -47,14 +133,51 @@ export class GeminiReviewer {
       console.log(`⏱️  Analysis completed in ${duration}s`);
 
       const response = result.response;
+
+      // Check if response was truncated (finish reason)
+      const finishReason = response.candidates?.[0]?.finishReason;
+      if (finishReason === 'MAX_TOKENS' || finishReason === 'RECITATION') {
+        throw new Error(
+          `❌ Response truncated: The model hit its output limit.\n\n` +
+          `This usually means the model generated too much text.\n` +
+          `Try:\n` +
+          `  1. Use a premium model (gemini-2.5-pro or gemini-3-pro-preview)\n` +
+          `  2. Review fewer files at once\n` +
+          `  3. Simplify your rules to reduce prompt size\n\n` +
+          `Current model: ${this.config.model}\n` +
+          `Finish reason: ${finishReason}`
+        );
+      }
+
       const text = response.text();
+
+      // Check if response looks truncated (incomplete JSON)
+      if (!text.trim().endsWith('}')) {
+        console.warn(chalk.yellow('⚠️  Warning: Response may be truncated (doesn\'t end with }'));
+      }
 
       let reviewData;
       try {
         reviewData = JSON.parse(text);
       } catch (parseError) {
-        console.error('Failed to parse JSON response:', text);
-        throw new Error('Invalid JSON response from Gemini');
+        // Better error message with debugging info
+        const preview = text.length > 500
+          ? text.substring(0, 250) + '\n...\n' + text.substring(text.length - 250)
+          : text;
+
+        console.error(chalk.red('\n❌ Failed to parse JSON response from Gemini\n'));
+        console.error(chalk.yellow('Response preview:'));
+        console.error(chalk.dim(preview));
+        console.error(chalk.yellow('\nLikely causes:'));
+        console.error(chalk.dim('  1. Model output was truncated (hit token limit)'));
+        console.error(chalk.dim('  2. Model generated invalid JSON'));
+        console.error(chalk.dim('  3. Response was too verbose'));
+        console.error(chalk.yellow('\nTroubleshooting:'));
+        console.error(chalk.dim(`  • Current model: ${this.config.model}`));
+        console.error(chalk.dim(`  • Try: gemini-2.5-pro or gemini-3-pro-preview`));
+        console.error(chalk.dim(`  • Or: Review fewer/smaller files`));
+
+        throw new Error('Invalid JSON response from Gemini - see details above');
       }
 
       // Extract thinking trace if available
