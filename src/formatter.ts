@@ -1,4 +1,7 @@
 import chalk from 'chalk';
+import Table from 'cli-table3';
+import terminalLink from 'terminal-link';
+import figures from 'figures';
 import { ReviewResult, ReviewIssue } from './types.js';
 
 export class ResultFormatter {
@@ -6,36 +9,81 @@ export class ResultFormatter {
    * Format and print review results to console
    */
   static printResults(result: ReviewResult): void {
-    console.log('\n' + '='.repeat(60));
-    console.log(chalk.bold.cyan('📊 CODE REVIEW RESULTS'));
-    console.log('='.repeat(60) + '\n');
+    console.log(); // Spacing
 
-    // Overall metrics
-    console.log(chalk.bold('📁 Files Reviewed:'), result.filesReviewed.length);
-    console.log(chalk.bold('📝 Total Lines:'), result.totalLines);
-    console.log(chalk.bold('🐛 Issues Found:'), result.issues.length);
-    console.log(chalk.bold('⭐ Overall Score:'), this.formatScore(result.overallScore));
+    // Header - simpler approach to avoid rendering issues
+    console.log(chalk.bold.cyan('═'.repeat(65)));
+    console.log();
+    console.log(chalk.bold.white('        🔍 Gemini Deep Code Review'));
+    console.log();
+    console.log(chalk.bold.cyan('═'.repeat(65)));
+
+    console.log();
+
+    // Results summary
+    console.log(chalk.green(figures.tick) + ' ' + chalk.bold('Review Complete'));
+    console.log();
+
+    // Results table
+    console.log(chalk.bold('Results'));
+    const resultsTable = new Table({
+      chars: {
+        top: '',
+        'top-mid': '',
+        'top-left': '',
+        'top-right': '',
+        bottom: '',
+        'bottom-mid': '',
+        'bottom-left': '',
+        'bottom-right': '',
+        left: '  ',
+        'left-mid': '',
+        mid: '',
+        'mid-mid': '',
+        right: '',
+        'right-mid': '',
+        middle: ' ',
+      },
+      style: { 'padding-left': 0, 'padding-right': 2 },
+      colWidths: [20, 50],
+    });
+
+    const scoreDisplay = this.formatScore(result.overallScore);
+    const issuesCount = result.issues.length;
+    const criticalCount = result.issues.filter(i => i.severity === 'critical').length;
+    const highCount = result.issues.filter(i => i.severity === 'high').length;
+    const mediumCount = result.issues.filter(i => i.severity === 'medium').length;
+    const lowCount = result.issues.filter(i => i.severity === 'low').length;
+
+    resultsTable.push(
+      [chalk.dim('Score'), scoreDisplay],
+      [chalk.dim('Files'), chalk.whiteBright(result.filesReviewed.length.toString())],
+      [chalk.dim('Issues'), chalk.whiteBright(issuesCount.toString())]
+    );
+
+    console.log(resultsTable.toString());
     console.log();
 
     // Summary
-    console.log(chalk.bold.underline('Summary:'));
-    console.log(chalk.gray(result.summary));
-    console.log();
-
-    // Thinking trace (if available)
-    if (result.thinkingTrace) {
-      console.log(chalk.bold.underline('🤔 Reasoning Trace:'));
-      console.log(chalk.dim(result.thinkingTrace));
+    if (result.summary) {
+      console.log(chalk.bold('Summary'));
+      console.log(chalk.dim('  ' + result.summary));
       console.log();
     }
 
     // Separate rule-based from AI discoveries
     const ruleBased = result.issues.filter(i => i.ruleId);
     const aiDiscoveries = result.issues.filter(i => !i.ruleId);
+    const totalIssues = result.issues.length;
 
-    console.log(chalk.bold.yellow(`\n📋 RULE-BASED FINDINGS (${ruleBased.length})`));
-    console.log(chalk.gray('Issues found by checking your team rules\n'));
-    console.log('-'.repeat(60));
+    // Main issues header with breakdown
+    console.log(chalk.bold(`📊 Issues Found (${totalIssues})`));
+    console.log()
+
+    console.log(chalk.bold(`🔖 From Team Rules (${ruleBased.length})`));
+    console.log(chalk.bold(`✨ AI Insights: ${aiDiscoveries.length})`));
+
+    console.log();
 
     if (ruleBased.length > 0) {
       const ruleGrouped = this.groupBySeverity(ruleBased);
@@ -44,17 +92,19 @@ export class ResultFormatter {
         if (issues.length === 0) continue;
 
         console.log(this.getSeverityHeader(severity, issues.length));
+        console.log();
         issues.forEach((issue, index) => {
-          this.printIssue(issue, index + 1);
+          this.printIssue(issue, false); // false = not AI discovery
         });
       }
     } else {
-      console.log(chalk.gray('   (No rule violations found)\n'));
+      console.log(chalk.dim('  No rule violations found'));
+      console.log();
     }
 
-    console.log(chalk.bold.cyan(`\n🧠 AI-DISCOVERED ISSUES (${aiDiscoveries.length})`));
-    console.log(chalk.gray('Issues found by Gemini\'s deep reasoning (NOT from your rules!)\n'));
-    console.log('-'.repeat(60));
+    // AI Insights
+    console.log(chalk.bold(`✨ AI Insights (${aiDiscoveries.length})`));
+    console.log();
 
     if (aiDiscoveries.length > 0) {
       const aiGrouped = this.groupBySeverity(aiDiscoveries);
@@ -63,51 +113,65 @@ export class ResultFormatter {
         if (issues.length === 0) continue;
 
         console.log(this.getSeverityHeader(severity, issues.length));
+        console.log();
         issues.forEach((issue, index) => {
-          this.printIssue(issue, index + 1, true); // true = AI discovery
+          this.printIssue(issue, true); // true = AI discovery
         });
       }
     } else {
-      console.log(chalk.gray('   (No additional issues discovered)\n'));
+      console.log(chalk.dim('  No additional issues discovered'));
+      console.log();
     }
 
-    // Files reviewed
-    console.log(chalk.bold.underline('Files Reviewed:'));
-    result.filesReviewed.forEach(file => {
-      console.log(chalk.gray(`  • ${file}`));
-    });
+    // Footer
+    console.log(
+      chalk.dim(
+        figures.tick + ' Done in ' + ((Date.now() - (result as any).startTime) / 1000 || 0).toFixed(1) + 's'
+      )
+    );
     console.log();
-
-    console.log('='.repeat(60));
   }
 
   /**
-   * Print a single issue
+   * Print a single issue with modern formatting
    */
-  private static printIssue(issue: ReviewIssue, index: number, isAiDiscovery: boolean = false): void {
+  private static printIssue(issue: ReviewIssue, isAiDiscovery: boolean): void {
     const location = issue.line ? `${issue.file}:${issue.line}` : issue.file;
 
-    console.log();
-    console.log(chalk.bold(`${index}. ${issue.title}`));
-    console.log(chalk.cyan(`   📍 ${location}`));
+    // Make file path clickable if supported
+    const fileLink = terminalLink(location, `file://${process.cwd()}/${issue.file}`, {
+      fallback: () => location,
+    });
 
-    if (isAiDiscovery) {
-      console.log(chalk.magenta(`   🤖 AI Discovery - Not from any rule!`));
+    // Issue box - using plain text to avoid box rendering issues
+    console.log(chalk.bold(issue.title));
+    console.log(chalk.blueBright(figures.pointer + ' ') + chalk.dim(fileLink));
+    console.log();
+    console.log(issue.description);
+
+    if (issue.reasoning) {
+      console.log();
+      console.log(chalk.blueBright(figures.arrowRight + ' Why:'));
+      console.log(chalk.dim(issue.reasoning));
     }
-
-    console.log(chalk.gray(`   🏷️  [${issue.category}]${issue.ruleId ? ` Rule: ${issue.ruleId}` : ' (AI reasoning)'}`));
-    console.log();
-    console.log(chalk.white('   Description:'));
-    console.log(chalk.gray(`   ${issue.description}`));
-    console.log();
-    console.log(chalk.white('   💭 Reasoning:'));
-    console.log(chalk.dim(`   ${issue.reasoning}`));
 
     if (issue.suggestion) {
       console.log();
-      console.log(chalk.green('   ✅ Suggestion:'));
-      console.log(chalk.greenBright(`   ${issue.suggestion}`));
+      console.log(chalk.green(figures.tick + ' Fix:'));
+      console.log(chalk.greenBright(issue.suggestion));
     }
+
+    if (issue.ruleId) {
+      console.log();
+      console.log(chalk.yellow(figures.info + ' Rule: ') + issue.ruleId);
+    } else if (isAiDiscovery) {
+      console.log();
+      console.log(chalk.magenta(figures.star + ' AI Insight'));
+    }
+
+    // Separator line
+    console.log(chalk.dim('─'.repeat(70)));
+    console.log();
   }
 
   /**
@@ -127,49 +191,90 @@ export class ResultFormatter {
    */
   private static getSeverityHeader(severity: string, count: number): string {
     const icon = {
-      critical: '🔴',
-      high: '🟠',
-      medium: '🟡',
-      low: '🟢',
-    }[severity] || '⚪';
+      critical: figures.cross,
+      high: figures.warning,
+      medium: figures.info,
+      low: figures.bullet,
+    }[severity] || figures.bullet;
 
+    // Use brighter colors that work in both light and dark themes
     const color = {
-      critical: chalk.red,
-      high: chalk.yellow,
-      medium: chalk.blue,
-      low: chalk.green,
+      critical: chalk.redBright,
+      high: chalk.yellowBright,
+      medium: chalk.blueBright,
+      low: chalk.greenBright,
     }[severity] || chalk.white;
 
-    return `\n${icon} ${color.bold(severity.toUpperCase())} (${count})`;
+    return `  ${color.bold(icon + ' ' + severity.toUpperCase())} ${chalk.dim('(' + count + ')')}`;
+  }
+
+  /**
+   * Get severity color for borders
+   */
+  private static getSeverityColor(severity: string): 'red' | 'yellow' | 'blue' | 'green' | 'white' {
+    return {
+      critical: 'red',
+      high: 'yellow',
+      medium: 'blue',
+      low: 'green',
+    }[severity] as any || 'white';
   }
 
   /**
    * Format score with color
    */
   private static formatScore(score: number): string {
-    if (score >= 90) return chalk.green.bold(`${score}/100 (Excellent)`);
-    if (score >= 70) return chalk.blue.bold(`${score}/100 (Good)`);
-    if (score >= 50) return chalk.yellow.bold(`${score}/100 (Fair)`);
-    return chalk.red.bold(`${score}/100 (Needs Improvement)`);
+    if (score >= 90) return chalk.green.bold(`${score}/100 `) + chalk.green('(Excellent ' + figures.tick + ')');
+    if (score >= 70) return chalk.blue.bold(`${score}/100 `) + chalk.blue('(Good ' + figures.tick + ')');
+    if (score >= 50) return chalk.yellow.bold(`${score}/100 `) + chalk.yellow('(Fair)');
+    return chalk.red.bold(`${score}/100 `) + chalk.red('(Needs Improvement)');
   }
 
   /**
-   * Print a simple summary (for quick feedback)
+   * Print configuration table
    */
-  static printSummary(result: ReviewResult): void {
-    const criticalCount = result.issues.filter(i => i.severity === 'critical').length;
-    const highCount = result.issues.filter(i => i.severity === 'high').length;
+  static printConfig(config: {
+    model: string;
+    rules: number;
+    tags: string[];
+    deepThinking: boolean;
+  }): void {
+    console.log(chalk.bold('Configuration'));
 
-    console.log();
-    console.log(chalk.bold('Review Complete:'));
-    console.log(`  Score: ${this.formatScore(result.overallScore)}`);
-    console.log(`  Issues: ${result.issues.length} total`);
-    if (criticalCount > 0) {
-      console.log(chalk.red.bold(`  ⚠️  ${criticalCount} critical issue(s) found!`));
-    }
-    if (highCount > 0) {
-      console.log(chalk.yellow.bold(`  ⚠️  ${highCount} high-priority issue(s) found!`));
-    }
+    const configTable = new Table({
+      chars: {
+        top: '',
+        'top-mid': '',
+        'top-left': '',
+        'top-right': '',
+        bottom: '',
+        'bottom-mid': '',
+        'bottom-left': '',
+        'bottom-right': '',
+        left: '  ',
+        'left-mid': '',
+        mid: '',
+        'mid-mid': '',
+        right: '',
+        'right-mid': '',
+        middle: ' ',
+      },
+      style: { 'padding-left': 0, 'padding-right': 2 },
+      colWidths: [20, 50],
+    });
+
+    configTable.push(
+      [chalk.dim('Model'), chalk.whiteBright(config.model)],
+      [chalk.dim('Rules'), chalk.whiteBright(`${config.rules} loaded (${config.tags.join(', ')})`)],
+      [
+        chalk.dim('Deep Mode'),
+        config.deepThinking
+          ? chalk.greenBright('enabled ' + figures.tick)
+          : chalk.dim('disabled'),
+      ]
+    );
+
+    console.log(configTable.toString());
     console.log();
   }
 }
